@@ -1,0 +1,18 @@
+# Local collected market data
+data/
+tmp/
+
+# Python cache and local environments
+__pycache__/
+*.py[cod]
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.venv/
+venv/
+
+# Local editor and OS files
+.idea/
+.vscode/
+.DS_Store
+Thumbs.db

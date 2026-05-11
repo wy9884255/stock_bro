@@ -1,0 +1,12 @@
+[project]
+name = "stock-bro"
+version = "0.1.0"
+description = "Daily A-share stock data collection utilities."
+requires-python = ">=3.10"
+dependencies = []
+
+[project.scripts]
+stock-bro = "stock_bro.cli:main"
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
