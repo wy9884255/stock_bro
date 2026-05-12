@@ -12,15 +12,15 @@ from .trading_calendar import read_trade_calendar
 def build_dashboard(
     trade_date: date,
     eastmoney_dir: Path = Path("data/limit_up"),
-    kaipanla_dir: Path = Path("data/kaipanla"),
+    cls_dir: Path = Path("data/cls"),
     web_dir: Path = Path("web"),
 ) -> Path:
     records = _read_eastmoney_records(eastmoney_dir / f"{trade_date:%Y%m%d}.jsonl")
-    block_map = _read_block_limit_up(kaipanla_dir / f"{trade_date:%Y%m%d}_block_limit_up.json")
-    dragon_tiger_map = _read_latest_dragon_tiger(kaipanla_dir)
+    cls_analysis = _read_cls_limit_up_analysis(cls_dir / f"{trade_date:%Y%m%d}_limit_up_analysis.json")
+    theme_map = _theme_map_from_cls(cls_analysis)
 
     stocks = [
-        _merge_stock(record, block_map.get(record["code"], {}), dragon_tiger_map.get(record["code"]))
+        _merge_stock(record, theme_map.get(record["code"], {}))
         for record in records
     ]
     stocks.sort(key=lambda item: (item["last_limit_up_time"] or "99:99:99", item["code"]))
@@ -28,7 +28,8 @@ def build_dashboard(
     payload = {
         "trade_date": trade_date.strftime("%Y-%m-%d"),
         "generated_at": _latest_generated_at(stocks),
-        "summary": _build_summary(stocks, block_map, dragon_tiger_map),
+        "summary": _build_summary(stocks, theme_map, cls_analysis),
+        "cls_analysis": _dashboard_cls_payload(cls_analysis),
         "themes": _build_themes(stocks),
         "stocks": stocks,
     }
@@ -61,50 +62,40 @@ def _read_eastmoney_records(path: Path) -> list[dict[str, Any]]:
     return records
 
 
-def _read_block_limit_up(path: Path) -> dict[str, dict[str, Any]]:
+def _read_cls_limit_up_analysis(path: Path) -> dict[str, Any]:
     if not path.exists():
         return {}
     with path.open("r", encoding="utf-8") as file:
         payload = json.load(file)
-    stocks = payload.get("stocks", [])
-    if not isinstance(stocks, list):
+    if not isinstance(payload, dict):
         return {}
-    result: dict[str, dict[str, Any]] = {}
-    for stock in stocks:
-        if isinstance(stock, dict):
-            code = str(stock.get("code") or "")
-            if code:
-                result[code] = stock
-    return result
+    return payload
 
 
-def _read_latest_dragon_tiger(kaipanla_dir: Path) -> dict[str, dict[str, Any]]:
-    files = sorted(kaipanla_dir.glob("*_dragon_tiger.json"))
-    if not files:
-        return {}
-    with files[-1].open("r", encoding="utf-8") as file:
-        rows = json.load(file)
+def _theme_map_from_cls(cls_analysis: dict[str, Any]) -> dict[str, dict[str, Any]]:
+    rows = cls_analysis.get("theme_stocks", [])
     if not isinstance(rows, list):
         return {}
+
     result: dict[str, dict[str, Any]] = {}
     for row in rows:
-        if isinstance(row, dict):
-            code = str(row.get("code") or "")
-            if code:
-                result[code] = row
+        if not isinstance(row, dict):
+            continue
+        code = str(row.get("code") or "")
+        if not code:
+            continue
+        item = result.setdefault(code, {"themes": [], "reason_info": None})
+        for theme in _extract_theme_names(row.get("theme") or row.get("themes") or []):
+            if theme not in item["themes"]:
+                item["themes"].append(theme)
+        reason = _clean_text(row.get("reason") or row.get("analysis"))
+        if reason and not item.get("reason_info"):
+            item["reason_info"] = reason
     return result
 
 
-def _merge_stock(
-    eastmoney: dict[str, Any],
-    block: dict[str, Any],
-    dragon_tiger: dict[str, Any] | None,
-) -> dict[str, Any]:
-    block_names = _extract_theme_names(block.get("block_names", []))
-    reason_type = _clean_text(block.get("reason_type"))
-    if reason_type:
-        block_names.extend(_extract_theme_names(reason_type))
-    concepts = _clean_strings((dragon_tiger or {}).get("concepts", []))
+def _merge_stock(eastmoney: dict[str, Any], cls_theme: dict[str, Any]) -> dict[str, Any]:
+    themes = _clean_strings(cls_theme.get("themes", []))
     return {
         "code": eastmoney["code"],
         "name": eastmoney["name"],
@@ -117,50 +108,43 @@ def _merge_stock(
         "limit_up_session": eastmoney.get("limit_up_session") or "unknown",
         "industry": _clean_text(eastmoney.get("industry")),
         "is_failed_limit_up": (eastmoney.get("failed_limit_up_times") or 0) > 0,
-        "themes": _dedupe(block_names),
-        "reason_type": reason_type,
-        "reason_info": _clean_text(block.get("reason_info")),
-        "change_tag": _clean_text(block.get("change_tag")),
-        "market_type": _clean_text(block.get("market_type")),
-        "kaipanla_latest": block.get("latest"),
-        "dragon_tiger": _merge_dragon_tiger(dragon_tiger, concepts),
+        "themes": themes,
+        "reason_type": ", ".join(themes) if themes else None,
+        "reason_info": _clean_text(cls_theme.get("reason_info")),
         "collected_at": eastmoney.get("collected_at"),
-    }
-
-
-def _merge_dragon_tiger(row: dict[str, Any] | None, concepts: list[str]) -> dict[str, Any] | None:
-    if not row:
-        return None
-    return {
-        "increase_amount": _clean_text(row.get("increase_amount")),
-        "net_buy_amount": row.get("net_buy_amount"),
-        "join_num": row.get("join_num"),
-        "buy_icons": _clean_strings(row.get("buy_icons", [])),
-        "sell_icons": _clean_strings(row.get("sell_icons", [])),
-        "concepts": concepts,
-        "limit_up_days": row.get("limit_up_days"),
     }
 
 
 def _build_summary(
     stocks: list[dict[str, Any]],
-    block_map: dict[str, dict[str, Any]],
-    dragon_tiger_map: dict[str, dict[str, Any]],
+    theme_map: dict[str, dict[str, Any]],
+    cls_analysis: dict[str, Any],
 ) -> dict[str, Any]:
     times = [stock["last_limit_up_time"] for stock in stocks if stock["last_limit_up_time"]]
     return {
         "total": len(stocks),
         "failed": sum(1 for stock in stocks if stock["is_failed_limit_up"]),
         "with_theme": sum(1 for stock in stocks if stock["themes"]),
-        "with_dragon_tiger": sum(1 for stock in stocks if stock["dragon_tiger"]),
-        "kaipanla_theme_records": len(block_map),
-        "dragon_tiger_records": len(dragon_tiger_map),
+        "cls_theme_records": len(theme_map),
+        "cls_images": len(cls_analysis.get("classification_images") or []),
         "earliest_limit_up": min(times) if times else None,
         "latest_limit_up": max(times) if times else None,
     }
 
 
-def _build_themes(stocks: list[dict[str, Any]], min_count: int = 5) -> list[dict[str, Any]]:
+def _dashboard_cls_payload(cls_analysis: dict[str, Any]) -> dict[str, Any] | None:
+    if not cls_analysis:
+        return None
+    return {
+        "title": cls_analysis.get("title"),
+        "url": cls_analysis.get("url"),
+        "published_at": cls_analysis.get("published_at"),
+        "summary": cls_analysis.get("summary"),
+        "classification_images": cls_analysis.get("classification_images") or [],
+    }
+
+
+def _build_themes(stocks: list[dict[str, Any]], min_count: int = 1) -> list[dict[str, Any]]:
     counts: dict[str, int] = {}
     failed: dict[str, int] = {}
     for stock in stocks:
@@ -202,7 +186,9 @@ def _extract_theme_names(values: Any) -> list[str]:
 
     result: list[str] = []
     for value in raw_values:
-        normalized = value.replace("，", "+").replace("、", "+").replace("/", "+").replace("|", "+")
+        normalized = value
+        for separator in ("+", "，", "、", "/", "|"):
+            normalized = normalized.replace(separator, "+")
         for item in normalized.split("+"):
             item = item.strip()
             if item and item not in result:

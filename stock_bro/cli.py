@@ -5,6 +5,7 @@ from datetime import date, timedelta
 from pathlib import Path
 from typing import Any
 
+from .cls import fetch_cls_limit_up_analysis, write_json as write_cls_json
 from .compare import compare_limit_up_archives, format_comparison
 from .dashboard import build_dashboard
 from .kaipanla import (
@@ -77,6 +78,13 @@ def build_parser() -> argparse.ArgumentParser:
     kaipanla.add_argument("--timeout", type=float, default=15.0, help="HTTP timeout in seconds.")
     kaipanla.add_argument("--no-file", action="store_true", help="Do not write JSON output.")
 
+    cls = subparsers.add_parser("cls", help="Collect CLS limit-up analysis article data.")
+    cls.add_argument("--url", required=True, help="CLS article URL, for example https://www.cls.cn/detail/2368985.")
+    cls.add_argument("--date", dest="trade_date", help="Trade date in YYYY-MM-DD or YYYYMMDD format.")
+    cls.add_argument("--out-dir", default="data/cls", help="Directory for CLS JSON files.")
+    cls.add_argument("--timeout", type=float, default=15.0, help="HTTP timeout in seconds.")
+    cls.add_argument("--no-file", action="store_true", help="Do not write JSON output.")
+
     compare = subparsers.add_parser("compare-limit-up", help="Compare Eastmoney and Kaipanla local archives.")
     compare.add_argument("--date", required=True, dest="trade_date", help="Trade date in YYYY-MM-DD or YYYYMMDD format.")
     compare.add_argument("--eastmoney-dir", default="data/limit_up", help="Directory with Eastmoney JSONL archives.")
@@ -92,7 +100,7 @@ def build_parser() -> argparse.ArgumentParser:
     dashboard = subparsers.add_parser("build-dashboard", help="Build a local HTML dashboard from archived data.")
     dashboard.add_argument("--date", required=True, dest="trade_date", help="Trade date in YYYY-MM-DD or YYYYMMDD format.")
     dashboard.add_argument("--eastmoney-dir", default="data/limit_up", help="Directory with Eastmoney JSONL archives.")
-    dashboard.add_argument("--kaipanla-dir", default="data/kaipanla", help="Directory with Kaipanla JSON archives.")
+    dashboard.add_argument("--cls-dir", default="data/cls", help="Directory with CLS limit-up analysis JSON archives.")
     dashboard.add_argument("--web-dir", default="web", help="Output directory for dashboard files.")
 
     trade_calendar = subparsers.add_parser("trade-calendar", help="Fetch and cache A-share trading calendar.")
@@ -202,6 +210,21 @@ def main(argv: list[str] | None = None) -> int:
             print(f"Wrote {path}")
         return 0
 
+    if args.command == "cls":
+        trade_date = parse_trade_date(args.trade_date) if args.trade_date else None
+        analysis = fetch_cls_limit_up_analysis(args.url, trade_date=trade_date, timeout=args.timeout)
+        print(f"CLS limit-up analysis: {analysis.title} ({analysis.trade_date})")
+        print(f"Classification images: {len(analysis.classification_images)}")
+        for image in analysis.classification_images:
+            dimensions = f"{image.width}x{image.height}" if image.width and image.height else "unknown size"
+            print(f"  {dimensions} {image.url}")
+        if analysis.related_stocks:
+            print(f"Related stocks: {_format_cls_stock_list(analysis.related_stocks)}")
+        if not args.no_file:
+            path = write_cls_json(analysis, Path(args.out_dir))
+            print(f"Wrote {path}")
+        return 0
+
     if args.command == "compare-limit-up":
         trade_date = parse_trade_date(args.trade_date)
         comparison = compare_limit_up_archives(
@@ -218,7 +241,7 @@ def main(argv: list[str] | None = None) -> int:
         data_path = build_dashboard(
             trade_date,
             eastmoney_dir=Path(args.eastmoney_dir),
-            kaipanla_dir=Path(args.kaipanla_dir),
+            cls_dir=Path(args.cls_dir),
             web_dir=Path(args.web_dir),
         )
         print(f"Built dashboard data: {data_path}")
@@ -276,6 +299,13 @@ def _format_kaipanla_raw_rows(rows: list[Any], limit: int = 20) -> str:
 
 def _format_kaipanla_dict_stocks(rows: list[dict[str, Any]], limit: int = 20) -> str:
     return ", ".join(f"{row.get('code')} {row.get('name')}" for row in rows[:limit])
+
+
+def _format_cls_stock_list(records: list[object]) -> str:
+    return ", ".join(
+        f"{record.name} {record.change_percent or ''}".strip()
+        for record in records[:20]
+    )
 
 
 def _date_range(start: date, end: date) -> list[date]:
