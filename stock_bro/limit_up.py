@@ -36,6 +36,15 @@ class LimitUpStock:
     collected_at: str
 
 
+@dataclass(frozen=True)
+class FailedLimitUpSummary:
+    failed_stocks: list[LimitUpStock]
+    closed_above_previous_close: list[LimitUpStock]
+    closed_at_previous_close: list[LimitUpStock]
+    closed_below_previous_close: list[LimitUpStock]
+    unknown_close_relation: list[LimitUpStock]
+
+
 CSV_FIELDS = [
     "trade_date",
     "code",
@@ -133,6 +142,7 @@ def parse_eastmoney_limit_up_row(row: dict[str, Any], trade_date: date, collecte
         raise ValueError(f"Unexpected Eastmoney row type: {type(row).__name__}")
 
     first_limit_up_time = _format_hhmmss(row.get("fbt"))
+    last_limit_up_time = _format_hhmmss(row.get("lbt"))
     failed_limit_up_times = _to_int(row.get("zbc"))
     return LimitUpStock(
         trade_date=trade_date.strftime("%Y-%m-%d"),
@@ -143,10 +153,10 @@ def parse_eastmoney_limit_up_row(row: dict[str, Any], trade_date: date, collecte
         turnover_amount=_to_float(row.get("amount")),
         limit_up_amount=_to_float(row.get("fund")),
         first_limit_up_time=first_limit_up_time,
-        last_limit_up_time=_format_hhmmss(row.get("lbt")),
+        last_limit_up_time=last_limit_up_time,
         consecutive_limit_up_days=_to_int(row.get("lbc")),
         failed_limit_up_times=failed_limit_up_times,
-        limit_up_session=classify_limit_up_session(first_limit_up_time, failed_limit_up_times),
+        limit_up_session=classify_limit_up_session(last_limit_up_time, failed_limit_up_times),
         industry=_empty_to_none(row.get("hybk")),
         raw=row,
         collected_at=collected_at,
@@ -277,16 +287,53 @@ def is_st_stock(name: str) -> bool:
     return normalized.startswith("ST") or normalized.startswith("*ST") or normalized.startswith("S*ST")
 
 
-def classify_limit_up_session(first_limit_up_time: str | None, failed_limit_up_times: int | None) -> str:
-    if not first_limit_up_time:
+def summarize_failed_limit_up_stocks(records: list[LimitUpStock]) -> FailedLimitUpSummary:
+    failed_stocks = [record for record in records if (record.failed_limit_up_times or 0) > 0]
+    closed_above_previous_close = [
+        record for record in failed_stocks if _classify_close_vs_previous_close(record.change_percent) == "above"
+    ]
+    closed_at_previous_close = [
+        record for record in failed_stocks if _classify_close_vs_previous_close(record.change_percent) == "at"
+    ]
+    closed_below_previous_close = [
+        record for record in failed_stocks if _classify_close_vs_previous_close(record.change_percent) == "below"
+    ]
+    unknown_close_relation = [
+        record for record in failed_stocks if _classify_close_vs_previous_close(record.change_percent) == "unknown"
+    ]
+    return FailedLimitUpSummary(
+        failed_stocks=failed_stocks,
+        closed_above_previous_close=closed_above_previous_close,
+        closed_at_previous_close=closed_at_previous_close,
+        closed_below_previous_close=closed_below_previous_close,
+        unknown_close_relation=unknown_close_relation,
+    )
+
+
+def classify_limit_up_session(limit_up_time: str | None, failed_limit_up_times: int | None) -> str:
+    if not limit_up_time:
         return "unknown"
-    if first_limit_up_time == "09:25:00" and (failed_limit_up_times or 0) == 0:
-        return "opening_one_word"
-    if first_limit_up_time <= "11:30:00":
-        return "morning"
-    if first_limit_up_time >= "13:00:00":
-        return "afternoon"
+    if limit_up_time <= "09:30:00":
+        return "opening"
+    if limit_up_time < "10:00:00":
+        return "morning_9_to_10"
+    if limit_up_time <= "11:30:00":
+        return "morning_10_to_1130"
+    if limit_up_time <= "14:30:00":
+        return "afternoon_1130_to_1430"
+    if limit_up_time > "14:30:00":
+        return "late_afternoon_after_1430"
     return "unknown"
+
+
+def _classify_close_vs_previous_close(change_percent: float | None) -> str:
+    if change_percent is None:
+        return "unknown"
+    if change_percent > 0:
+        return "above"
+    if change_percent < 0:
+        return "below"
+    return "at"
 
 
 def _strip_jsonp(value: str) -> str:

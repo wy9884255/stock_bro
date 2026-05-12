@@ -1,6 +1,8 @@
 # Local collected market data
 data/
 tmp/
+web/dashboard_data*.json
+web/dashboard_index.json
 
 # Python cache and local environments
 __pycache__/

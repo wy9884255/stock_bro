@@ -1,0 +1,495 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>stock_bro 涨停复盘</title>
+  <style>
+    :root {
+      --bg: #f6f7f9;
+      --panel: #ffffff;
+      --line: #d9dee7;
+      --text: #1f2937;
+      --muted: #667085;
+      --red: #c92a2a;
+      --orange: #d97706;
+      --green: #15803d;
+      --blue: #2563eb;
+      --chip: #eef2f7;
+    }
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      color: var(--text);
+      background: var(--bg);
+      font-family: "Microsoft YaHei", "Segoe UI", Arial, sans-serif;
+      letter-spacing: 0;
+    }
+    header {
+      padding: 18px 24px 14px;
+      background: var(--panel);
+      border-bottom: 1px solid var(--line);
+    }
+    h1 { margin: 0 0 12px; font-size: 22px; font-weight: 700; }
+    .toolbar {
+      display: grid;
+      grid-template-columns: minmax(180px, 1fr) repeat(6, auto);
+      gap: 10px;
+      align-items: center;
+    }
+    input, select, button {
+      height: 34px;
+      border: 1px solid var(--line);
+      border-radius: 6px;
+      background: #fff;
+      color: var(--text);
+      padding: 0 10px;
+      font-size: 14px;
+    }
+    button { cursor: pointer; }
+    button.active {
+      color: #fff;
+      background: var(--blue);
+      border-color: var(--blue);
+    }
+    main {
+      display: grid;
+      grid-template-columns: 260px minmax(0, 1fr) 360px;
+      gap: 14px;
+      padding: 14px;
+    }
+    section, aside {
+      background: var(--panel);
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      min-width: 0;
+    }
+    .panel-title {
+      padding: 12px 14px;
+      border-bottom: 1px solid var(--line);
+      font-size: 15px;
+      font-weight: 700;
+    }
+    .summary {
+      display: grid;
+      grid-template-columns: repeat(6, minmax(90px, 1fr));
+      gap: 10px;
+      margin-top: 10px;
+    }
+    .metric {
+      padding: 10px 12px;
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      background: #fafbfc;
+    }
+    .metric span { display: block; color: var(--muted); font-size: 12px; }
+    .metric strong { display: block; margin-top: 4px; font-size: 18px; }
+    .themes {
+      max-height: calc(100vh - 145px);
+      overflow: auto;
+      padding: 8px;
+    }
+    .theme {
+      display: flex;
+      justify-content: space-between;
+      gap: 8px;
+      width: 100%;
+      margin: 4px 0;
+      padding: 8px;
+      text-align: left;
+      border: 1px solid transparent;
+      border-radius: 6px;
+      background: transparent;
+    }
+    .theme:hover, .theme.active { border-color: var(--blue); background: #eff6ff; }
+    .theme small { color: var(--muted); white-space: nowrap; }
+    .content { display: flex; flex-direction: column; gap: 14px; }
+    .timeline {
+      padding: 14px;
+      min-height: 174px;
+    }
+    .axis {
+      position: relative;
+      height: 112px;
+      border-bottom: 1px solid var(--line);
+      background: linear-gradient(to right, #eef2f7 1px, transparent 1px) 0 0 / 20% 100%;
+    }
+    .dot {
+      position: absolute;
+      top: 18px;
+      width: 12px;
+      height: 12px;
+      border-radius: 50%;
+      border: 2px solid #fff;
+      background: var(--red);
+      box-shadow: 0 0 0 1px rgba(0,0,0,.15);
+      transform: translate(-50%, -50%);
+      cursor: pointer;
+    }
+    .dot.failed { background: var(--orange); }
+    .dot.unknown { background: #98a2b3; }
+    .dot.selected { width: 16px; height: 16px; box-shadow: 0 0 0 3px rgba(37,99,235,.25); }
+    .ticks {
+      display: flex;
+      justify-content: space-between;
+      color: var(--muted);
+      font-size: 12px;
+      padding-top: 8px;
+    }
+    .legend {
+      display: flex;
+      gap: 14px;
+      color: var(--muted);
+      font-size: 12px;
+      margin-top: 10px;
+    }
+    .legend i {
+      display: inline-block;
+      width: 10px;
+      height: 10px;
+      border-radius: 50%;
+      margin-right: 5px;
+      vertical-align: -1px;
+    }
+    .table-wrap { overflow: auto; max-height: calc(100vh - 385px); }
+    table { width: 100%; border-collapse: collapse; font-size: 13px; }
+    th, td {
+      padding: 9px 8px;
+      border-bottom: 1px solid var(--line);
+      text-align: left;
+      vertical-align: top;
+      white-space: nowrap;
+    }
+    th {
+      position: sticky;
+      top: 0;
+      background: #f8fafc;
+      z-index: 1;
+    }
+    tr { cursor: pointer; }
+    tr:hover, tr.selected { background: #eff6ff; }
+    .tags { display: flex; gap: 4px; flex-wrap: wrap; white-space: normal; max-width: 280px; }
+    .tag {
+      display: inline-flex;
+      align-items: center;
+      min-height: 20px;
+      padding: 1px 7px;
+      border-radius: 999px;
+      background: var(--chip);
+      color: #344054;
+      font-size: 12px;
+    }
+    .tag.warn { background: #fff7ed; color: var(--orange); }
+    .tag.ok { background: #ecfdf3; color: var(--green); }
+    .detail { padding: 14px; overflow: auto; max-height: calc(100vh - 65px); }
+    .detail h2 { margin: 0; font-size: 20px; }
+    .detail .code { color: var(--muted); font-size: 13px; margin-top: 3px; }
+    .grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 8px;
+      margin: 14px 0;
+    }
+    .field {
+      border: 1px solid var(--line);
+      border-radius: 6px;
+      padding: 8px;
+      min-height: 54px;
+    }
+    .field span { display: block; color: var(--muted); font-size: 12px; }
+    .field strong { display: block; margin-top: 4px; font-size: 14px; }
+    .block { margin-top: 14px; }
+    .block h3 { margin: 0 0 8px; font-size: 14px; }
+    .empty { color: var(--muted); }
+    @media (max-width: 1100px) {
+      main { grid-template-columns: 220px 1fr; }
+      aside.detail-panel { grid-column: 1 / -1; }
+      .detail { max-height: none; }
+      .summary { grid-template-columns: repeat(3, 1fr); }
+    }
+    @media (max-width: 760px) {
+      .toolbar { grid-template-columns: 1fr 1fr; }
+      main { grid-template-columns: 1fr; padding: 10px; }
+      .summary { grid-template-columns: repeat(2, 1fr); }
+    }
+  </style>
+</head>
+<body>
+  <header>
+    <h1>涨停复盘看板</h1>
+    <div class="toolbar">
+      <input id="search" placeholder="搜索代码、名称、题材、龙虎榜概念">
+      <select id="dateSelect"></select>
+      <select id="sort">
+        <option value="last_time">最后封板时间</option>
+        <option value="first_time">首次封板时间</option>
+        <option value="change">涨幅</option>
+        <option value="failed">炸板次数</option>
+        <option value="days">连板数</option>
+      </select>
+      <button data-filter="all" class="active">全部</button>
+      <button data-filter="failed">炸板</button>
+      <button data-filter="dragon">龙虎榜</button>
+      <button data-filter="late">14:30 后</button>
+    </div>
+    <div class="summary" id="summary"></div>
+  </header>
+  <main>
+    <section>
+      <div class="panel-title">题材板块</div>
+      <div class="themes" id="themes"></div>
+    </section>
+    <div class="content">
+      <section>
+        <div class="panel-title">从最早涨停到最晚涨停</div>
+        <div class="timeline">
+          <div class="axis" id="axis"></div>
+          <div class="ticks"><span>09:25</span><span>10:00</span><span>11:30</span><span>13:00</span><span>14:30</span><span>15:00</span></div>
+          <div class="legend">
+            <span><i style="background: var(--red)"></i>封住涨停</span>
+            <span><i style="background: var(--orange)"></i>炸板过</span>
+            <span><i style="background: #98a2b3"></i>无有效时间</span>
+          </div>
+        </div>
+      </section>
+      <section>
+        <div class="panel-title">个股明细</div>
+        <div class="table-wrap">
+          <table>
+            <thead>
+              <tr>
+                <th>代码</th><th>名称</th><th>首封</th><th>最后封板</th><th>炸板</th><th>连板</th><th>涨幅</th><th>题材</th><th>龙虎榜</th>
+              </tr>
+            </thead>
+            <tbody id="rows"></tbody>
+          </table>
+        </div>
+      </section>
+    </div>
+    <aside class="detail-panel">
+      <div class="panel-title">个股详情</div>
+      <div class="detail" id="detail"></div>
+    </aside>
+  </main>
+  <script>
+    const state = { data: null, dates: [], filter: 'all', theme: '', query: '', sort: 'last_time', selected: null };
+    const timeStart = minutes('09:25:00');
+    const timeEnd = minutes('15:00:00');
+
+    loadIndex();
+
+    document.getElementById('search').addEventListener('input', e => { state.query = e.target.value.trim().toLowerCase(); render(); });
+    document.getElementById('sort').addEventListener('change', e => { state.sort = e.target.value; render(); });
+    document.getElementById('dateSelect').addEventListener('change', e => {
+      const item = state.dates.find(row => row.date === e.target.value);
+      if (item) loadData(item.file);
+    });
+    document.querySelectorAll('button[data-filter]').forEach(btn => {
+      btn.addEventListener('click', () => {
+        state.filter = btn.dataset.filter;
+        document.querySelectorAll('button[data-filter]').forEach(item => item.classList.toggle('active', item === btn));
+        render();
+      });
+    });
+
+    function render() {
+      if (!state.data) return;
+      renderSummary();
+      renderThemes();
+      const stocks = filteredStocks();
+      if (!stocks.includes(state.selected)) state.selected = stocks[0] || null;
+      renderTimeline(stocks);
+      renderRows(stocks);
+      renderDetail();
+    }
+
+    function loadIndex() {
+      fetch('dashboard_index.json')
+        .then(res => res.ok ? res.json() : Promise.reject())
+        .then(index => {
+          state.dates = index.dates || [];
+          renderDateSelect();
+          const latest = state.dates[state.dates.length - 1];
+          loadData(latest ? latest.file : 'dashboard_data.json');
+        })
+        .catch(() => loadData('dashboard_data.json'));
+    }
+
+    function loadData(file) {
+      fetch(file)
+        .then(res => res.json())
+        .then(data => {
+          const previousCode = state.selected && state.selected.code;
+          state.data = data;
+          state.theme = '';
+          state.selected = data.stocks.find(stock => stock.code === previousCode) || data.stocks[0] || null;
+          renderDateSelect();
+          render();
+        })
+        .catch(() => {
+          document.body.innerHTML = '<main><section style="padding:24px">未找到看板数据，请先运行 build-dashboard。</section></main>';
+        });
+    }
+
+    function renderDateSelect() {
+      const select = document.getElementById('dateSelect');
+      if (!select) return;
+      const current = state.data && state.data.trade_date;
+      select.innerHTML = state.dates.map(item => `<option value="${item.date}" ${item.date === current ? 'selected' : ''}>${item.date}</option>`).join('');
+      if (!state.dates.length && current) {
+        select.innerHTML = `<option value="${current}">${current}</option>`;
+      }
+    }
+
+    function renderSummary() {
+      const s = state.data.summary;
+      const items = [
+        ['交易日', state.data.trade_date],
+        ['涨停数', s.total],
+        ['炸板股', s.failed],
+        ['有题材', s.with_theme],
+        ['有龙虎榜', s.with_dragon_tiger],
+        ['时间范围', `${s.earliest_limit_up || '-'} / ${s.latest_limit_up || '-'}`],
+      ];
+      document.getElementById('summary').innerHTML = items.map(([label, value]) => `<div class="metric"><span>${label}</span><strong>${value}</strong></div>`).join('');
+    }
+
+    function renderThemes() {
+      const root = document.getElementById('themes');
+      const all = `<button class="theme ${state.theme === '' ? 'active' : ''}" data-theme=""><span>全部题材</span><small>${state.data.summary.total}</small></button>`;
+      const themes = state.data.themes.map(t => `<button class="theme ${state.theme === t.name ? 'active' : ''}" data-theme="${escapeAttr(t.name)}"><span>${escapeHtml(t.name)}</span><small>${t.count}${t.failed_count ? ' / 炸' + t.failed_count : ''}</small></button>`).join('');
+      root.innerHTML = all + themes;
+      root.querySelectorAll('.theme').forEach(btn => btn.addEventListener('click', () => { state.theme = btn.dataset.theme; render(); }));
+    }
+
+    function filteredStocks() {
+      let rows = state.data.stocks.slice();
+      if (state.filter === 'failed') rows = rows.filter(s => s.is_failed_limit_up);
+      if (state.filter === 'dragon') rows = rows.filter(s => s.dragon_tiger);
+      if (state.filter === 'late') rows = rows.filter(s => (s.last_limit_up_time || '') > '14:30:00');
+      if (state.theme) rows = rows.filter(s => s.themes.includes(state.theme));
+      if (state.query) {
+        rows = rows.filter(s => searchable(s).includes(state.query));
+      }
+      rows.sort(sortStocks);
+      return rows;
+    }
+
+    function sortStocks(a, b) {
+      if (state.sort === 'first_time') return compareText(a.first_limit_up_time || '99:99:99', b.first_limit_up_time || '99:99:99') || compareText(a.code, b.code);
+      if (state.sort === 'change') return compareNumber(b.change_percent, a.change_percent) || compareText(a.last_limit_up_time || '99:99:99', b.last_limit_up_time || '99:99:99');
+      if (state.sort === 'failed') return compareNumber(b.failed_limit_up_times || 0, a.failed_limit_up_times || 0) || compareText(a.last_limit_up_time || '99:99:99', b.last_limit_up_time || '99:99:99');
+      if (state.sort === 'days') return compareNumber(b.consecutive_limit_up_days || 0, a.consecutive_limit_up_days || 0) || compareText(a.last_limit_up_time || '99:99:99', b.last_limit_up_time || '99:99:99');
+      return compareText(a.last_limit_up_time || '99:99:99', b.last_limit_up_time || '99:99:99') || compareText(a.code, b.code);
+    }
+
+    function compareText(a, b) {
+      return String(a).localeCompare(String(b));
+    }
+
+    function compareNumber(a, b) {
+      const left = Number.isFinite(Number(a)) ? Number(a) : -Infinity;
+      const right = Number.isFinite(Number(b)) ? Number(b) : -Infinity;
+      return left - right;
+    }
+
+    function renderTimeline(stocks) {
+      const axis = document.getElementById('axis');
+      axis.innerHTML = stocks.map((s, index) => {
+        const pct = timePercent(s.last_limit_up_time);
+        const top = 16 + (index % 5) * 18;
+        const cls = s.last_limit_up_time ? (s.is_failed_limit_up ? 'failed' : '') : 'unknown';
+        return `<div class="dot ${cls} ${state.selected === s ? 'selected' : ''}" style="left:${pct}%;top:${top}px" title="${escapeAttr(s.code + ' ' + s.name + ' ' + (s.last_limit_up_time || '-'))}" data-code="${s.code}"></div>`;
+      }).join('');
+      axis.querySelectorAll('.dot').forEach(dot => dot.addEventListener('click', () => selectStock(dot.dataset.code)));
+    }
+
+    function renderRows(stocks) {
+      document.getElementById('rows').innerHTML = stocks.map(s => `
+        <tr class="${state.selected === s ? 'selected' : ''}" data-code="${s.code}">
+          <td>${s.code}</td>
+          <td>${escapeHtml(s.name)}</td>
+          <td>${s.first_limit_up_time || '-'}</td>
+          <td>${s.last_limit_up_time || '-'}</td>
+          <td>${s.failed_limit_up_times ? `<span class="tag warn">${s.failed_limit_up_times}</span>` : '-'}</td>
+          <td>${s.consecutive_limit_up_days || '-'}</td>
+          <td>${formatPct(s.change_percent)}</td>
+          <td><div class="tags">${s.themes.slice(0, 3).map(t => `<span class="tag">${escapeHtml(t)}</span>`).join('')}</div></td>
+          <td>${s.dragon_tiger ? '<span class="tag ok">有</span>' : '-'}</td>
+        </tr>`).join('');
+      document.querySelectorAll('#rows tr').forEach(row => row.addEventListener('click', () => selectStock(row.dataset.code)));
+    }
+
+    function renderDetail() {
+      const s = state.selected;
+      const root = document.getElementById('detail');
+      if (!s) {
+        root.innerHTML = '<div class="empty">没有匹配的股票</div>';
+        return;
+      }
+      const dt = s.dragon_tiger;
+      root.innerHTML = `
+        <h2>${escapeHtml(s.name)}</h2>
+        <div class="code">${s.code}</div>
+        <div class="grid">
+          <div class="field"><span>首次封板</span><strong>${s.first_limit_up_time || '-'}</strong></div>
+          <div class="field"><span>最后封板</span><strong>${s.last_limit_up_time || '-'}</strong></div>
+          <div class="field"><span>炸板次数</span><strong>${s.failed_limit_up_times || 0}</strong></div>
+          <div class="field"><span>连板数</span><strong>${s.consecutive_limit_up_days || '-'}</strong></div>
+          <div class="field"><span>涨跌幅</span><strong>${formatPct(s.change_percent)}</strong></div>
+          <div class="field"><span>阶段</span><strong>${s.limit_up_session}</strong></div>
+        </div>
+        <div class="block"><h3>题材板块</h3><div class="tags">${s.themes.length ? s.themes.map(t => `<span class="tag">${escapeHtml(t)}</span>`).join('') : '<span class="empty">无</span>'}</div></div>
+        <div class="block"><h3>开盘啦原因</h3><div>${escapeHtml(s.reason_info || '无')}</div></div>
+        <div class="block"><h3>龙虎榜</h3>${dt ? dragonHtml(dt) : '<div class="empty">无龙虎榜数据</div>'}</div>
+      `;
+    }
+
+    function dragonHtml(dt) {
+      return `
+        <div class="grid">
+          <div class="field"><span>净买入</span><strong>${formatMoney(dt.net_buy_amount)}</strong></div>
+          <div class="field"><span>关联数</span><strong>${dt.join_num ?? '-'}</strong></div>
+        </div>
+        <div class="block"><h3>买入席位</h3><div class="tags">${tagList(dt.buy_icons)}</div></div>
+        <div class="block"><h3>卖出席位</h3><div class="tags">${tagList(dt.sell_icons)}</div></div>
+        <div class="block"><h3>风口概念</h3><div class="tags">${tagList(dt.concepts)}</div></div>
+      `;
+    }
+
+    function selectStock(code) {
+      state.selected = state.data.stocks.find(s => s.code === code) || state.selected;
+      render();
+    }
+    function searchable(s) {
+      return [s.code, s.name, s.industry, s.reason_type, ...(s.themes || []), ...((s.dragon_tiger && s.dragon_tiger.concepts) || [])].join(' ').toLowerCase();
+    }
+    function tagList(values) {
+      return values && values.length ? values.map(v => `<span class="tag">${escapeHtml(v)}</span>`).join('') : '<span class="empty">无</span>';
+    }
+    function minutes(time) {
+      const [h, m] = time.split(':').map(Number);
+      return h * 60 + m;
+    }
+    function timePercent(time) {
+      if (!time) return 99;
+      const value = Math.max(timeStart, Math.min(timeEnd, minutes(time)));
+      return ((value - timeStart) / (timeEnd - timeStart)) * 100;
+    }
+    function formatPct(value) {
+      return value == null ? '-' : `${Number(value).toFixed(2)}%`;
+    }
+    function formatMoney(value) {
+      if (value == null) return '-';
+      const n = Number(value);
+      if (Math.abs(n) >= 100000000) return `${(n / 100000000).toFixed(2)}亿`;
+      if (Math.abs(n) >= 10000) return `${(n / 10000).toFixed(2)}万`;
+      return n.toFixed(0);
+    }
+    function escapeHtml(value) {
+      return String(value ?? '').replace(/[&<>"']/g, m => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[m]));
+    }
+    function escapeAttr(value) { return escapeHtml(value).replace(/`/g, '&#96;'); }
+  </script>
+</body>
+</html>
