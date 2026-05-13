@@ -17,6 +17,8 @@ def build_dashboard(
 ) -> Path:
     records = _read_eastmoney_records(eastmoney_dir / f"{trade_date:%Y%m%d}.jsonl")
     cls_analysis = _read_cls_limit_up_analysis(cls_dir / f"{trade_date:%Y%m%d}_limit_up_analysis.json")
+    _merge_cls_theme_stocks(cls_analysis, cls_dir / f"{trade_date:%Y%m%d}_theme_stocks.json")
+    finance_anchors = _read_cls_finance_anchors(cls_dir / f"{trade_date:%Y%m%d}_finance_anchors.json")
     theme_map = _theme_map_from_cls(cls_analysis)
 
     stocks = [
@@ -30,6 +32,7 @@ def build_dashboard(
         "generated_at": _latest_generated_at(stocks),
         "summary": _build_summary(stocks, theme_map, cls_analysis),
         "cls_analysis": _dashboard_cls_payload(cls_analysis),
+        "finance_anchors": finance_anchors,
         "themes": _build_themes(stocks),
         "stocks": stocks,
     }
@@ -70,6 +73,39 @@ def _read_cls_limit_up_analysis(path: Path) -> dict[str, Any]:
     if not isinstance(payload, dict):
         return {}
     return payload
+
+
+def _merge_cls_theme_stocks(cls_analysis: dict[str, Any], path: Path) -> None:
+    if not path.exists():
+        return
+    with path.open("r", encoding="utf-8") as file:
+        payload = json.load(file)
+    if isinstance(payload, dict):
+        rows = payload.get("theme_stocks", [])
+    else:
+        rows = payload
+    if isinstance(rows, list):
+        cls_analysis["theme_stocks"] = rows
+
+
+def _read_cls_finance_anchors(path: Path) -> dict[str, Any] | None:
+    if not path.exists():
+        return None
+    with path.open("r", encoding="utf-8") as file:
+        payload = json.load(file)
+    if not isinstance(payload, dict):
+        return None
+    anchors = payload.get("anchors")
+    segments = payload.get("segments")
+    if not isinstance(anchors, list) or not isinstance(segments, list):
+        return None
+    return {
+        "source": payload.get("source"),
+        "api": payload.get("api"),
+        "trade_date": payload.get("trade_date"),
+        "anchor_count": len(anchors),
+        "segments": segments,
+    }
 
 
 def _theme_map_from_cls(cls_analysis: dict[str, Any]) -> dict[str, dict[str, Any]]:

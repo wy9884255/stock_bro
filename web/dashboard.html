@@ -33,7 +33,7 @@
     h1 { margin: 0 0 12px; font-size: 22px; font-weight: 700; }
     .toolbar {
       display: grid;
-      grid-template-columns: minmax(180px, 1fr) repeat(5, auto);
+      grid-template-columns: minmax(180px, 1fr) repeat(4, auto);
       gap: 10px;
       align-items: center;
     }
@@ -146,6 +146,47 @@
       font-size: 13px;
       line-height: 1.6;
     }
+    .finance-flow {
+      display: grid;
+      grid-template-columns: repeat(5, minmax(140px, 1fr));
+      gap: 10px;
+      padding: 12px;
+    }
+    .finance-segment {
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      background: #fafbfc;
+      min-height: 110px;
+      overflow: hidden;
+    }
+    .finance-segment h3 {
+      margin: 0;
+      padding: 8px 10px;
+      border-bottom: 1px solid var(--line);
+      font-size: 13px;
+      background: #fff;
+    }
+    .finance-anchors {
+      display: flex;
+      flex-direction: column;
+      gap: 6px;
+      padding: 8px;
+    }
+    .finance-anchor {
+      display: grid;
+      grid-template-columns: auto minmax(0, 1fr);
+      gap: 6px;
+      align-items: center;
+      color: var(--text);
+      text-decoration: none;
+      font-size: 12px;
+      line-height: 1.35;
+    }
+    .finance-anchor time { color: var(--muted); font-variant-numeric: tabular-nums; }
+    .finance-anchor span { overflow-wrap: anywhere; }
+    .finance-anchor.down span { color: var(--green); }
+    .finance-anchor.up span { color: var(--red); }
+    .finance-empty { padding: 8px; color: var(--muted); font-size: 12px; }
     .table-wrap { overflow: auto; max-height: calc(100vh - 405px); }
     table { width: 100%; border-collapse: collapse; font-size: 13px; }
     th, td {
@@ -190,11 +231,13 @@
       aside.detail-panel { grid-column: 1 / -1; }
       .detail { max-height: none; }
       .summary { grid-template-columns: repeat(3, 1fr); }
+      .finance-flow { grid-template-columns: repeat(2, minmax(140px, 1fr)); }
     }
     @media (max-width: 760px) {
       .toolbar { grid-template-columns: 1fr 1fr; }
       main { grid-template-columns: 1fr; padding: 10px; }
       .summary { grid-template-columns: repeat(2, 1fr); }
+      .finance-flow { grid-template-columns: 1fr; }
     }
   </style>
 </head>
@@ -214,7 +257,6 @@
       <button data-filter="all" class="active">全部</button>
       <button data-filter="themed">有题材</button>
       <button data-filter="failed">炸板</button>
-      <button data-filter="late">14:30后</button>
     </div>
     <div class="summary" id="summary"></div>
   </header>
@@ -236,6 +278,10 @@
           </div>
         </div>
         <div class="cls-note" id="clsNote"></div>
+      </section>
+      <section>
+        <div class="panel-title">财联社盘中题材脉络</div>
+        <div class="finance-flow" id="financeFlow"></div>
       </section>
       <section>
         <div class="panel-title">个股明细</div>
@@ -282,6 +328,7 @@
       renderSummary();
       renderThemes();
       renderClsNote();
+      renderFinanceFlow();
       const stocks = filteredStocks();
       if (!stocks.includes(state.selected)) state.selected = stocks[0] || null;
       renderTimeline(stocks);
@@ -327,13 +374,14 @@
 
     function renderSummary() {
       const s = state.data.summary;
+      const anchorCount = state.data.finance_anchors ? state.data.finance_anchors.anchor_count : 0;
       const items = [
         ['交易日', state.data.trade_date],
         ['涨停数', s.total],
         ['炸板股', s.failed],
         ['已分类', s.with_theme],
         ['题材数', state.data.themes.length],
-        ['时间范围', `${s.earliest_limit_up || '-'} / ${s.latest_limit_up || '-'}`],
+        ['盘中题材', anchorCount],
       ];
       document.getElementById('summary').innerHTML = items.map(([label, value]) => `<div class="metric"><span>${label}</span><strong>${value}</strong></div>`).join('');
     }
@@ -349,6 +397,33 @@
       root.innerHTML = `${link} ${escapeHtml(cls.published_at || '')}<br>${escapeHtml(cls.summary || '')}`;
     }
 
+    function renderFinanceFlow() {
+      const root = document.getElementById('financeFlow');
+      if (!root) return;
+      const finance = state.data.finance_anchors;
+      if (!finance || !finance.segments || !finance.segments.length) {
+        root.innerHTML = '<div class="finance-empty">未读取到财联社盘中题材锚点。</div>';
+        return;
+      }
+      root.innerHTML = finance.segments.map(segment => {
+        const themes = segment.themes || [];
+        const body = themes.length ? themes.map(theme => {
+          const cls = theme.direction === 'down' ? 'down' : 'up';
+          const href = theme.article_id ? `https://www.cls.cn/detail/${theme.article_id}` : '';
+          const label = `${theme.direction === 'down' ? '↓ ' : '↑ '}${theme.name || '-'}`;
+          const content = `<time>${escapeHtml(theme.time || '')}</time><span>${escapeHtml(label)}</span>`;
+          return href
+            ? `<a class="finance-anchor ${cls}" href="${escapeAttr(href)}" target="_blank" rel="noreferrer">${content}</a>`
+            : `<div class="finance-anchor ${cls}">${content}</div>`;
+        }).join('') : '<div class="finance-empty">无题材锚点</div>';
+        return `
+          <div class="finance-segment">
+            <h3>${escapeHtml(segment.start)}-${escapeHtml(segment.end)}</h3>
+            <div class="finance-anchors">${body}</div>
+          </div>`;
+      }).join('');
+    }
+
     function renderThemes() {
       const root = document.getElementById('themes');
       const all = `<button class="theme ${state.theme === '' ? 'active' : ''}" data-theme=""><span>全部题材</span><small>${state.data.summary.total}</small></button>`;
@@ -361,7 +436,6 @@
       let rows = state.data.stocks.slice();
       if (state.filter === 'themed') rows = rows.filter(s => s.themes && s.themes.length);
       if (state.filter === 'failed') rows = rows.filter(s => s.is_failed_limit_up);
-      if (state.filter === 'late') rows = rows.filter(s => (s.last_limit_up_time || '') > '14:30:00');
       if (state.theme) rows = rows.filter(s => s.themes.includes(state.theme));
       if (state.query) rows = rows.filter(s => searchable(s).includes(state.query));
       rows.sort(sortStocks);
