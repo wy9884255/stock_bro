@@ -15,6 +15,7 @@ from urllib.request import Request, urlopen
 
 
 EASTMONEY_LIMIT_UP_URL = "https://push2ex.eastmoney.com/getTopicZTPool"
+FAILED_LIMIT_UP_GRACE_SECONDS = 30 * 60
 
 
 @dataclass(frozen=True)
@@ -143,7 +144,11 @@ def parse_eastmoney_limit_up_row(row: dict[str, Any], trade_date: date, collecte
 
     first_limit_up_time = _format_hhmmss(row.get("fbt"))
     last_limit_up_time = _format_hhmmss(row.get("lbt"))
-    failed_limit_up_times = _to_int(row.get("zbc"))
+    failed_limit_up_times = normalize_failed_limit_up_times(
+        row.get("zbc"),
+        first_limit_up_time,
+        last_limit_up_time,
+    )
     return LimitUpStock(
         trade_date=trade_date.strftime("%Y-%m-%d"),
         code=str(row.get("c") or ""),
@@ -310,6 +315,26 @@ def summarize_failed_limit_up_stocks(records: list[LimitUpStock]) -> FailedLimit
     )
 
 
+def normalize_failed_limit_up_times(
+    failed_limit_up_times: Any,
+    first_limit_up_time: str | None,
+    last_limit_up_time: str | None,
+) -> int | None:
+    failed_count = _to_int(failed_limit_up_times)
+    if failed_count is None or failed_count <= 0:
+        return failed_count
+
+    first_seconds = _time_to_seconds(first_limit_up_time)
+    last_seconds = _time_to_seconds(last_limit_up_time)
+    if first_seconds is None or last_seconds is None:
+        return failed_count
+
+    elapsed = last_seconds - first_seconds
+    if 0 <= elapsed <= FAILED_LIMIT_UP_GRACE_SECONDS:
+        return 0
+    return failed_count
+
+
 def classify_limit_up_session(limit_up_time: str | None, failed_limit_up_times: int | None) -> str:
     if not limit_up_time:
         return "unknown"
@@ -372,6 +397,19 @@ def _to_int(value: Any) -> int | None:
         return int(value)
     except (TypeError, ValueError):
         return None
+
+
+def _time_to_seconds(value: str | None) -> int | None:
+    if not value:
+        return None
+    parts = value.split(":")
+    if len(parts) != 3:
+        return None
+    try:
+        hour, minute, second = (int(part) for part in parts)
+    except ValueError:
+        return None
+    return hour * 3600 + minute * 60 + second
 
 
 def _empty_to_none(value: Any) -> str | None:

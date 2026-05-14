@@ -33,7 +33,7 @@
     h1 { margin: 0 0 12px; font-size: 22px; font-weight: 700; }
     .toolbar {
       display: grid;
-      grid-template-columns: minmax(180px, 1fr) repeat(4, auto);
+      grid-template-columns: minmax(180px, 1fr) repeat(5, auto);
       gap: 10px;
       align-items: center;
     }
@@ -68,7 +68,7 @@
     }
     .summary {
       display: grid;
-      grid-template-columns: repeat(6, minmax(90px, 1fr));
+      grid-template-columns: repeat(7, minmax(90px, 1fr));
       gap: 10px;
       margin-top: 10px;
     }
@@ -187,6 +187,108 @@
     .finance-anchor.down span { color: var(--green); }
     .finance-anchor.up span { color: var(--red); }
     .finance-empty { padding: 8px; color: var(--muted); font-size: 12px; }
+    .finance-chart {
+      padding: 12px;
+      overflow: hidden;
+    }
+    .finance-chart.compact {
+      display: grid;
+      grid-template-columns: minmax(0, 1fr) auto;
+      gap: 10px;
+      align-items: center;
+    }
+    .finance-chart svg {
+      display: block;
+      width: 100%;
+      height: 320px;
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      background: #fff;
+    }
+    .finance-chart.large svg { height: min(76vh, 760px); }
+    .chart-summary { color: var(--muted); font-size: 13px; line-height: 1.5; }
+    .chart-grid { stroke: #e7ebf0; stroke-width: 1; }
+    .chart-axis { stroke: #cfd6e0; stroke-width: 1; }
+    .index-line { fill: none; stroke: var(--blue); stroke-width: 2.2; }
+    .index-line.synthetic { stroke-dasharray: 6 6; stroke: #98a2b3; }
+    .theme-point { fill: var(--red); stroke: #fff; stroke-width: 2; cursor: pointer; }
+    .theme-point.down { fill: var(--green); }
+    .theme-point.leader { r: 5.5; stroke: #7f1d1d; stroke-width: 2; }
+    .chart-label rect {
+      fill: rgba(255, 255, 255, .96);
+      stroke: var(--line);
+      rx: 5;
+    }
+    .chart-label text { fill: var(--text); font-size: 11px; }
+    .chart-label .leader-name { fill: var(--red); font-weight: 700; }
+    .chart-note { color: var(--muted); font-size: 12px; margin-top: 8px; }
+    .leader-grid {
+      display: grid;
+      grid-template-columns: repeat(4, minmax(160px, 1fr));
+      gap: 10px;
+      padding: 12px;
+    }
+    .leader-card {
+      display: grid;
+      gap: 7px;
+      min-height: 118px;
+      padding: 10px;
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      background: #fff;
+      cursor: pointer;
+    }
+    .leader-card:hover, .leader-card.selected { border-color: var(--blue); background: #eff6ff; }
+    .leader-card .leader-theme { color: var(--red); font-size: 13px; font-weight: 700; overflow-wrap: anywhere; }
+    .leader-card .leader-stock { font-size: 15px; font-weight: 700; }
+    .leader-card .leader-code { color: var(--muted); font-size: 12px; }
+    .leader-card .leader-meta {
+      display: flex;
+      gap: 8px;
+      flex-wrap: wrap;
+      color: var(--muted);
+      font-size: 12px;
+    }
+    .leader-card .leader-reason { color: var(--text); font-size: 12px; line-height: 1.45; overflow-wrap: anywhere; }
+    .returns-panel { padding: 12px; overflow: auto; }
+    .returns-panel table { min-width: 520px; }
+    .returns-panel td.positive, .field strong.positive { color: var(--red); }
+    .returns-panel td.negative, .field strong.negative { color: var(--green); }
+    .returns-note { color: var(--muted); font-size: 12px; margin-bottom: 8px; }
+    .muted-code { color: var(--muted); font-size: 12px; }
+    .modal-backdrop {
+      position: fixed;
+      inset: 0;
+      display: none;
+      align-items: center;
+      justify-content: center;
+      padding: 24px;
+      background: rgba(15, 23, 42, .42);
+      z-index: 10;
+    }
+    .modal-backdrop.open { display: flex; }
+    .modal {
+      width: min(860px, 100%);
+      max-height: min(720px, calc(100vh - 48px));
+      overflow: hidden;
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      background: var(--panel);
+      box-shadow: 0 24px 80px rgba(15, 23, 42, .22);
+    }
+    .chart-modal { width: min(1380px, 96vw); }
+    .chart-modal .finance-chart { padding: 14px; }
+    .modal-head {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 12px;
+      padding: 12px 14px;
+      border-bottom: 1px solid var(--line);
+    }
+    .modal-head h2 { margin: 0; font-size: 16px; }
+    .modal-close { width: 34px; padding: 0; font-size: 20px; line-height: 1; }
+    .modal .returns-panel { max-height: calc(100vh - 130px); }
     .table-wrap { overflow: auto; max-height: calc(100vh - 405px); }
     table { width: 100%; border-collapse: collapse; font-size: 13px; }
     th, td {
@@ -232,12 +334,14 @@
       .detail { max-height: none; }
       .summary { grid-template-columns: repeat(3, 1fr); }
       .finance-flow { grid-template-columns: repeat(2, minmax(140px, 1fr)); }
+      .leader-grid { grid-template-columns: repeat(2, minmax(160px, 1fr)); }
     }
     @media (max-width: 760px) {
       .toolbar { grid-template-columns: 1fr 1fr; }
       main { grid-template-columns: 1fr; padding: 10px; }
       .summary { grid-template-columns: repeat(2, 1fr); }
       .finance-flow { grid-template-columns: 1fr; }
+      .leader-grid { grid-template-columns: 1fr; }
     }
   </style>
 </head>
@@ -257,6 +361,7 @@
       <button data-filter="all" class="active">全部</button>
       <button data-filter="themed">有题材</button>
       <button data-filter="failed">炸板</button>
+      <button id="returnsButton" type="button">昨日题材收益</button>
     </div>
     <div class="summary" id="summary"></div>
   </header>
@@ -281,7 +386,12 @@
       </section>
       <section>
         <div class="panel-title">财联社盘中题材脉络</div>
+        <div class="finance-chart compact" id="financeChartSummary"></div>
         <div class="finance-flow" id="financeFlow"></div>
+      </section>
+      <section>
+        <div class="panel-title">领涨龙头</div>
+        <div class="leader-grid" id="financeLeaders"></div>
       </section>
       <section>
         <div class="panel-title">个股明细</div>
@@ -302,6 +412,24 @@
       <div class="detail" id="detail"></div>
     </aside>
   </main>
+  <div class="modal-backdrop" id="returnsModal" aria-hidden="true">
+    <div class="modal" role="dialog" aria-modal="true" aria-labelledby="returnsModalTitle">
+      <div class="modal-head">
+        <h2 id="returnsModalTitle">昨日题材次日收益</h2>
+        <button class="modal-close" id="returnsClose" type="button" aria-label="关闭">×</button>
+      </div>
+      <div class="returns-panel" id="nextDayReturns"></div>
+    </div>
+  </div>
+  <div class="modal-backdrop" id="financeChartModal" aria-hidden="true">
+    <div class="modal chart-modal" role="dialog" aria-modal="true" aria-labelledby="financeChartModalTitle">
+      <div class="modal-head">
+        <h2 id="financeChartModalTitle">财联社盘中题材脉络</h2>
+        <button class="modal-close" id="financeChartClose" type="button" aria-label="关闭">×</button>
+      </div>
+      <div class="finance-chart large" id="financeChart"></div>
+    </div>
+  </div>
   <script>
     const state = { data: null, dates: [], filter: 'all', theme: '', query: '', sort: 'last_time', selected: null };
     const timeStart = minutes('09:25:00');
@@ -309,6 +437,19 @@
 
     loadIndex();
 
+    document.getElementById('returnsButton').addEventListener('click', openReturnsModal);
+    document.getElementById('returnsClose').addEventListener('click', closeReturnsModal);
+    document.getElementById('returnsModal').addEventListener('click', e => {
+      if (e.target.id === 'returnsModal') closeReturnsModal();
+    });
+    document.getElementById('financeChartClose').addEventListener('click', closeFinanceChartModal);
+    document.getElementById('financeChartModal').addEventListener('click', e => {
+      if (e.target.id === 'financeChartModal') closeFinanceChartModal();
+    });
+    document.addEventListener('keydown', e => {
+      if (e.key === 'Escape') closeReturnsModal();
+      if (e.key === 'Escape') closeFinanceChartModal();
+    });
     document.getElementById('search').addEventListener('input', e => { state.query = e.target.value.trim().toLowerCase(); render(); });
     document.getElementById('sort').addEventListener('change', e => { state.sort = e.target.value; render(); });
     document.getElementById('dateSelect').addEventListener('change', e => {
@@ -328,7 +469,9 @@
       renderSummary();
       renderThemes();
       renderClsNote();
+      renderFinanceChartSummary();
       renderFinanceFlow();
+      renderFinanceLeaders();
       const stocks = filteredStocks();
       if (!stocks.includes(state.selected)) state.selected = stocks[0] || null;
       renderTimeline(stocks);
@@ -375,6 +518,7 @@
     function renderSummary() {
       const s = state.data.summary;
       const anchorCount = state.data.finance_anchors ? state.data.finance_anchors.anchor_count : 0;
+      const leaderCount = state.data.finance_leaders ? state.data.finance_leaders.length : 0;
       const items = [
         ['交易日', state.data.trade_date],
         ['涨停数', s.total],
@@ -382,6 +526,7 @@
         ['已分类', s.with_theme],
         ['题材数', state.data.themes.length],
         ['盘中题材', anchorCount],
+        ['领涨龙头', leaderCount],
       ];
       document.getElementById('summary').innerHTML = items.map(([label, value]) => `<div class="metric"><span>${label}</span><strong>${value}</strong></div>`).join('');
     }
@@ -395,6 +540,111 @@
       }
       const link = cls.url ? `<a href="${escapeAttr(cls.url)}" target="_blank" rel="noreferrer">${escapeHtml(cls.title || '财联社涨停分析')}</a>` : escapeHtml(cls.title || '财联社涨停分析');
       root.innerHTML = `${link} ${escapeHtml(cls.published_at || '')}<br>${escapeHtml(cls.summary || '')}`;
+    }
+
+    function renderFinanceChartSummary() {
+      const root = document.getElementById('financeChartSummary');
+      if (!root) return;
+      const finance = state.data.finance_anchors || {};
+      const markers = financeMarkers();
+      const curveCount = normalizeIndexCurve(finance.index_curve || state.data.index_curve).length;
+      root.innerHTML = `
+        <div class="chart-summary">
+          上证指数分时 ${curveCount ? `${curveCount} 个点` : '未归档'}，题材锚点 ${markers.length} 个，领涨龙头 ${(state.data.finance_leaders || []).length} 只。
+        </div>
+        <button type="button" id="financeChartOpen">查看大图</button>`;
+      document.getElementById('financeChartOpen').addEventListener('click', openFinanceChartModal);
+    }
+
+    function renderFinanceChart() {
+      const root = document.getElementById('financeChart');
+      if (!root) return;
+      const finance = state.data.finance_anchors;
+      const markers = financeMarkers();
+      if (!finance || !markers.length) {
+        root.innerHTML = '<div class="finance-empty">未读取到可绘制的题材脉络。</div>';
+        return;
+      }
+
+      const curve = normalizeIndexCurve(finance.index_curve || state.data.index_curve);
+      const hasCurve = curve.length >= 2;
+      const points = hasCurve ? curve : fallbackIndexCurve();
+      const values = points.map(point => point.value);
+      const min = Math.min(...values);
+      const max = Math.max(...values);
+      const pad = Math.max((max - min) * 0.16, 0.2);
+      const low = min - pad;
+      const high = max + pad;
+      const view = { width: 980, height: 320, left: 48, right: 20, top: 24, bottom: 42 };
+      const innerWidth = view.width - view.left - view.right;
+      const innerHeight = view.height - view.top - view.bottom;
+      const x = time => view.left + timePercent(time) * innerWidth / 100;
+      const y = value => view.top + (high - value) * innerHeight / Math.max(high - low, 1);
+      const linePath = indexLinePath(points, x, y);
+      const ticks = [
+        { time: '09:30:00', label: '09:30' },
+        { time: '10:00:00', label: '10:00' },
+        { time: '11:30:00', label: '11:30/13:00' },
+        { time: '14:30:00', label: '14:30' },
+        { time: '15:00:00', label: '15:00' },
+      ];
+      const grid = ticks.map(tick => {
+        const tx = x(tick.time).toFixed(1);
+        return `<line class="chart-grid" x1="${tx}" y1="${view.top}" x2="${tx}" y2="${view.height - view.bottom}"></line>
+          <text x="${tx}" y="${view.height - 17}" text-anchor="middle" fill="#667085" font-size="11">${tick.label}</text>`;
+      }).join('');
+      const markerNodes = markers.map((marker, index) => {
+        const leader = leaderForMarker(marker);
+        const mx = x(marker.time);
+        const baseY = hasCurve ? y(interpolateCurve(points, marker.time)) : y(0) + ((index % 5) - 2) * 9;
+        const cls = `${marker.direction === 'down' ? 'down' : ''} ${leader ? 'leader' : ''}`;
+        const title = `${marker.time} ${marker.name}${leader ? ` / ${leader.name} ${leader.code}` : ''}`;
+        return `<circle class="theme-point ${cls}" cx="${mx.toFixed(1)}" cy="${baseY.toFixed(1)}" r="${leader ? 5.5 : 4}" data-code="${escapeAttr(leader ? leader.code : '')}">
+          <title>${escapeHtml(title)}</title>
+        </circle>`;
+      }).join('');
+      const labels = markers.map((marker, index) => {
+        const leader = leaderForMarker(marker);
+        if (!leader) return '';
+        const mx = x(marker.time);
+        const baseY = hasCurve ? y(interpolateCurve(points, marker.time)) : y(0);
+        const labelWidth = Math.min(154, Math.max(96, (marker.name.length + leader.name.length) * 8));
+        const lx = Math.max(view.left + 2, Math.min(mx + 8, view.width - view.right - labelWidth));
+        const ly = Math.max(view.top + 2, Math.min(baseY + (index % 2 ? 12 : -48), view.height - view.bottom - 42));
+        return `<g class="chart-label">
+          <line x1="${mx.toFixed(1)}" y1="${baseY.toFixed(1)}" x2="${lx.toFixed(1)}" y2="${(ly + 18).toFixed(1)}" stroke="#d0d5dd"></line>
+          <rect x="${lx.toFixed(1)}" y="${ly.toFixed(1)}" width="${labelWidth}" height="38"></rect>
+          <text x="${(lx + 7).toFixed(1)}" y="${(ly + 15).toFixed(1)}">${escapeHtml(marker.name)}</text>
+          <text class="leader-name" x="${(lx + 7).toFixed(1)}" y="${(ly + 31).toFixed(1)}">${escapeHtml(leader.name)} ${escapeHtml(leader.code)}</text>
+        </g>`;
+      }).join('');
+      const note = hasCurve ? '蓝线为归档的上证指数分时曲线，红点为财联社题材锚点。' : '未归档上证指数分时曲线，当前按交易时间展示题材锚点；后续写入 index_curve 后会自动绘制真实曲线。';
+      root.innerHTML = `
+        <svg viewBox="0 0 ${view.width} ${view.height}" role="img" aria-label="上证指数题材脉络图">
+          <rect x="${view.left}" y="${view.top}" width="${innerWidth}" height="${innerHeight}" fill="#fafbfc"></rect>
+          ${grid}
+          <line class="chart-axis" x1="${view.left}" y1="${view.height - view.bottom}" x2="${view.width - view.right}" y2="${view.height - view.bottom}"></line>
+          <path class="index-line ${hasCurve ? '' : 'synthetic'}" d="${linePath}"></path>
+          ${markerNodes}
+          ${labels}
+        </svg>
+        <div class="chart-note">${escapeHtml(note)}</div>`;
+      root.querySelectorAll('.theme-point[data-code]').forEach(point => {
+        if (point.dataset.code) point.addEventListener('click', () => selectStock(point.dataset.code));
+      });
+    }
+
+    function openFinanceChartModal() {
+      renderFinanceChart();
+      const modal = document.getElementById('financeChartModal');
+      modal.classList.add('open');
+      modal.setAttribute('aria-hidden', 'false');
+    }
+
+    function closeFinanceChartModal() {
+      const modal = document.getElementById('financeChartModal');
+      modal.classList.remove('open');
+      modal.setAttribute('aria-hidden', 'true');
     }
 
     function renderFinanceFlow() {
@@ -422,6 +672,76 @@
             <div class="finance-anchors">${body}</div>
           </div>`;
       }).join('');
+    }
+
+    function renderFinanceLeaders() {
+      const root = document.getElementById('financeLeaders');
+      if (!root) return;
+      const leaders = state.data.finance_leaders || [];
+      if (!leaders.length) {
+        root.innerHTML = '<div class="finance-empty">暂无匹配出的领涨龙头。</div>';
+        return;
+      }
+      root.innerHTML = leaders.map(item => {
+        const selected = state.selected && state.selected.code === item.code;
+        const stock = state.data.stocks.find(s => s.code === item.code);
+        const failed = stock && stock.is_failed_limit_up ? '<span class="tag warn">炸板</span>' : '';
+        return `
+          <button class="leader-card ${selected ? 'selected' : ''}" type="button" data-code="${escapeAttr(item.code)}">
+            <div class="leader-theme">${escapeHtml(item.anchor_theme || '-')}</div>
+            <div>
+              <div class="leader-stock">${escapeHtml(item.name || '-')}</div>
+              <div class="leader-code">${escapeHtml(item.code || '')}</div>
+            </div>
+            <div class="leader-meta">
+              <span>${escapeHtml(item.segment || '')}</span>
+              <span>首封 ${escapeHtml(item.first_limit_up_time || '-')}</span>
+              ${failed}
+            </div>
+            <div class="leader-reason">${escapeHtml(item.reason_info || (item.themes || []).join(' / ') || '-')}</div>
+          </button>`;
+      }).join('');
+      root.querySelectorAll('.leader-card').forEach(card => card.addEventListener('click', () => selectStock(card.dataset.code)));
+    }
+
+    function renderNextDayReturns() {
+      const root = document.getElementById('nextDayReturns');
+      if (!root) return;
+      const returns = state.data.next_day_returns;
+      if (!returns || !returns.stocks || !returns.stocks.length) {
+        root.innerHTML = '<div class="finance-empty">未读取到前一交易日领涨龙头或当日行情归档。</div>';
+        return;
+      }
+      const rows = returns.stocks;
+      root.innerHTML = `
+        <div class="returns-note">${escapeHtml(returns.source_trade_date)} 领涨龙头在 ${escapeHtml(returns.return_trade_date)} 的逐标的表现。</div>
+        <table>
+          <thead><tr><th>标的</th><th>题材</th><th>首封</th><th>开盘收益</th><th>盘中最高收益</th><th>收盘收益</th></tr></thead>
+          <tbody>
+            ${rows.map(row => `
+              <tr>
+                <td>${escapeHtml(row.name)} <span class="muted-code">${escapeHtml(row.code)}</span></td>
+                <td>${escapeHtml((row.themes || []).join(' / ') || '-')}</td>
+                <td>${escapeHtml(row.first_limit_up_time || '-')}</td>
+                <td class="${pctClass(row.open_return_percent)}">${formatPct(row.open_return_percent)}</td>
+                <td class="${pctClass(row.high_return_percent)}">${formatPct(row.high_return_percent)}</td>
+                <td class="${pctClass(row.close_return_percent)}">${formatPct(row.close_return_percent)}</td>
+              </tr>`).join('')}
+          </tbody>
+        </table>`;
+    }
+
+    function openReturnsModal() {
+      renderNextDayReturns();
+      const modal = document.getElementById('returnsModal');
+      modal.classList.add('open');
+      modal.setAttribute('aria-hidden', 'false');
+    }
+
+    function closeReturnsModal() {
+      const modal = document.getElementById('returnsModal');
+      modal.classList.remove('open');
+      modal.setAttribute('aria-hidden', 'true');
     }
 
     function renderThemes() {
@@ -530,15 +850,94 @@
     function minText(values) { return values.length ? values.sort()[0] : null; }
     function maxText(values) { return values.length ? values.sort()[values.length - 1] : null; }
     function minutes(time) {
-      const [h, m] = time.split(':').map(Number);
+      const match = String(time || '').match(/(\d{1,2}):(\d{2})/);
+      if (!match) return timeStart;
+      const h = Number(match[1]);
+      const m = Number(match[2]);
       return h * 60 + m;
     }
     function timePercent(time) {
       if (!time) return 99;
-      const value = Math.max(timeStart, Math.min(timeEnd, minutes(time)));
-      return ((value - timeStart) / (timeEnd - timeStart)) * 100;
+      const value = tradingMinutes(time);
+      const start = tradingMinutes('09:25:00');
+      const end = tradingMinutes('15:00:00');
+      return ((value - start) / (end - start)) * 100;
+    }
+    function financeMarkers() {
+      const finance = state.data && state.data.finance_anchors;
+      if (!finance || !finance.segments) return [];
+      return finance.segments.flatMap(segment => (segment.themes || []).map(theme => ({
+        ...theme,
+        segment: `${segment.start}-${segment.end}`,
+        segmentStart: segment.start,
+        segmentEnd: segment.end,
+        time: theme.time || `${segment.start}:00`,
+      }))).filter(theme => theme.time && theme.name);
+    }
+    function leaderForMarker(marker) {
+      const leaders = state.data.finance_leaders || [];
+      return leaders.find(item =>
+        item.anchor_theme === marker.name
+        && (item.segment === marker.segment || item.anchor_time === marker.time)
+      );
+    }
+    function normalizeIndexCurve(raw) {
+      if (!Array.isArray(raw)) return [];
+      return raw.map(point => {
+        if (Array.isArray(point)) return { time: String(point[0] || ''), value: Number(point[1]) };
+        return {
+          time: String(point.time || point.datetime || point.minute || ''),
+          value: Number(point.value ?? point.price ?? point.close ?? point.change_percent ?? point.percent),
+        };
+      }).filter(point => point.time && Number.isFinite(point.value));
+    }
+    function fallbackIndexCurve() {
+      return [
+        { time: '09:30:00', value: 0 },
+        { time: '10:00:00', value: 0 },
+        { time: '11:30:00', value: 0 },
+        { time: '13:00:00', value: 0 },
+        { time: '14:30:00', value: 0 },
+        { time: '15:00:00', value: 0 },
+      ];
+    }
+    function indexLinePath(points, x, y) {
+      const sorted = points.slice().sort((a, b) => minutes(a.time) - minutes(b.time));
+      return sorted.map((point, index) => {
+        return `${index ? 'L' : 'M'} ${x(point.time).toFixed(1)} ${y(point.value).toFixed(1)}`;
+      }).join(' ');
+    }
+    function tradingMinutes(time) {
+      const value = Math.max(minutes('09:25:00'), Math.min(minutes('15:00:00'), minutes(time)));
+      const lunchStart = minutes('11:30:00');
+      const lunchEnd = minutes('13:00:00');
+      if (value <= lunchStart) return value;
+      if (value < lunchEnd) return lunchStart;
+      return value - (lunchEnd - lunchStart);
+    }
+    function interpolateCurve(points, time) {
+      const target = minutes(time);
+      const sorted = points.slice().sort((a, b) => minutes(a.time) - minutes(b.time));
+      for (let index = 0; index < sorted.length - 1; index += 1) {
+        const left = sorted[index];
+        const right = sorted[index + 1];
+        const leftTime = minutes(left.time);
+        const rightTime = minutes(right.time);
+        if (target >= leftTime && target <= rightTime) {
+          const span = Math.max(rightTime - leftTime, 1);
+          return left.value + (right.value - left.value) * ((target - leftTime) / span);
+        }
+      }
+      return target < minutes(sorted[0].time) ? sorted[0].value : sorted[sorted.length - 1].value;
     }
     function formatPct(value) { return value == null ? '-' : `${Number(value).toFixed(2)}%`; }
+    function pctClass(value) {
+      if (value == null) return '';
+      const number = Number(value);
+      if (number > 0) return 'positive';
+      if (number < 0) return 'negative';
+      return '';
+    }
     function escapeHtml(value) {
       return String(value ?? '').replace(/[&<>"']/g, m => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[m]));
     }

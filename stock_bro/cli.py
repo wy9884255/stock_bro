@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import argparse
+import json
 from datetime import date, timedelta
 from pathlib import Path
 from typing import Any
@@ -8,6 +9,7 @@ from typing import Any
 from .cls import fetch_cls_limit_up_analysis, write_json as write_cls_json
 from .compare import compare_limit_up_archives, format_comparison
 from .dashboard import build_dashboard
+from .index_curve import fetch_shanghai_index_curve, write_index_curve_to_cls_finance_anchors
 from .kaipanla import (
     fetch_block_limit_up_by_date,
     fetch_daily_limit_performance,
@@ -25,6 +27,7 @@ from .limit_up import (
     write_jsonl,
     write_sqlite,
 )
+from .quotes import collect_daily_quotes, write_jsonl as write_quote_jsonl
 from .trading_calendar import (
     DEFAULT_CALENDAR_PATH,
     fetch_a_share_trade_dates,
@@ -102,6 +105,19 @@ def build_parser() -> argparse.ArgumentParser:
     dashboard.add_argument("--eastmoney-dir", default="data/limit_up", help="Directory with Eastmoney JSONL archives.")
     dashboard.add_argument("--cls-dir", default="data/cls", help="Directory with CLS limit-up analysis JSON archives.")
     dashboard.add_argument("--web-dir", default="web", help="Output directory for dashboard files.")
+    dashboard.add_argument("--quotes-dir", default="data/quotes", help="Directory with daily quote JSONL archives.")
+
+    quotes = subparsers.add_parser("daily-quotes", help="Collect Eastmoney daily OHLC quotes for archived stocks.")
+    quotes.add_argument("--date", required=True, dest="trade_date", help="Quote trade date in YYYY-MM-DD or YYYYMMDD format.")
+    quotes.add_argument("--source-date", required=True, help="Source stock list date in YYYY-MM-DD or YYYYMMDD format.")
+    quotes.add_argument("--source-dir", default="data/limit_up", help="Directory with source Eastmoney JSONL archives.")
+    quotes.add_argument("--out-dir", default="data/quotes", help="Directory for quote JSONL archives.")
+    quotes.add_argument("--timeout", type=float, default=15.0, help="HTTP timeout in seconds.")
+
+    index_curve = subparsers.add_parser("index-curve", help="Collect Shanghai Composite intraday curve.")
+    index_curve.add_argument("--date", required=True, dest="trade_date", help="Trade date in YYYY-MM-DD or YYYYMMDD format.")
+    index_curve.add_argument("--cls-dir", default="data/cls", help="Directory with CLS finance anchor JSON archives.")
+    index_curve.add_argument("--timeout", type=float, default=15.0, help="HTTP timeout in seconds.")
 
     trade_calendar = subparsers.add_parser("trade-calendar", help="Fetch and cache A-share trading calendar.")
     trade_calendar.add_argument("--out", default=str(DEFAULT_CALENDAR_PATH), help="Output calendar JSON path.")
@@ -243,9 +259,35 @@ def main(argv: list[str] | None = None) -> int:
             eastmoney_dir=Path(args.eastmoney_dir),
             cls_dir=Path(args.cls_dir),
             web_dir=Path(args.web_dir),
+            quotes_dir=Path(args.quotes_dir),
         )
         print(f"Built dashboard data: {data_path}")
         print(f"Open dashboard: {data_path.parent / 'dashboard.html'}")
+        return 0
+
+    if args.command == "daily-quotes":
+        trade_date = parse_trade_date(args.trade_date)
+        source_date = parse_trade_date(args.source_date)
+        source_path = Path(args.source_dir) / f"{source_date:%Y%m%d}.jsonl"
+        stocks = _read_jsonl_rows(source_path)
+        quotes = collect_daily_quotes(stocks, trade_date, timeout=args.timeout)
+        path = write_quote_jsonl(quotes, Path(args.out_dir), trade_date)
+        print(f"Collected {len(quotes)} daily quotes for {trade_date:%Y-%m-%d} from {source_date:%Y-%m-%d} stocks.")
+        print(f"Wrote {path}")
+        return 0
+
+    if args.command == "index-curve":
+        trade_date = parse_trade_date(args.trade_date)
+        curve = fetch_shanghai_index_curve(trade_date, timeout=args.timeout)
+        path = write_index_curve_to_cls_finance_anchors(
+            curve,
+            Path(args.cls_dir) / f"{trade_date:%Y%m%d}_finance_anchors.json",
+        )
+        curve_date = curve.trade_date or trade_date.strftime("%Y-%m-%d")
+        print(f"Collected {len(curve.points)} Shanghai index points for {curve_date}.")
+        if curve.trade_date != trade_date.strftime("%Y-%m-%d"):
+            print(f"Warning: Eastmoney returned {curve.trade_date or 'unknown date'}, requested {trade_date:%Y-%m-%d}.")
+        print(f"Wrote {path}")
         return 0
 
     if args.command == "trade-calendar":
@@ -306,6 +348,20 @@ def _format_cls_stock_list(records: list[object]) -> str:
         f"{record.name} {record.change_percent or ''}".strip()
         for record in records[:20]
     )
+
+
+def _read_jsonl_rows(path: Path) -> list[dict[str, Any]]:
+    if not path.exists():
+        raise FileNotFoundError(f"Source archive not found: {path}")
+    rows: list[dict[str, Any]] = []
+    with path.open("r", encoding="utf-8") as file:
+        for line in file:
+            if not line.strip():
+                continue
+            row = json.loads(line)
+            if isinstance(row, dict):
+                rows.append(row)
+    return rows
 
 
 def _date_range(start: date, end: date) -> list[date]:

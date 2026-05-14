@@ -63,6 +63,36 @@ class LimitUpTests(unittest.TestCase):
         self.assertIsNone(zero_time_record.first_limit_up_time)
         self.assertIsNone(zero_time_record.last_limit_up_time)
 
+    def test_parse_eastmoney_row_ignores_early_failed_limit_up(self) -> None:
+        record = parse_eastmoney_limit_up_row(
+            {
+                "c": "600010",
+                "n": "GraceStock",
+                "fbt": 93000,
+                "lbt": 100000,
+                "zbc": 2,
+            },
+            date(2026, 5, 11),
+            "2026-05-11T08:00:00+00:00",
+        )
+
+        self.assertEqual(record.failed_limit_up_times, 0)
+
+    def test_parse_eastmoney_row_keeps_late_failed_limit_up(self) -> None:
+        record = parse_eastmoney_limit_up_row(
+            {
+                "c": "600011",
+                "n": "LateBreakStock",
+                "fbt": 93000,
+                "lbt": 100001,
+                "zbc": 2,
+            },
+            date(2026, 5, 11),
+            "2026-05-11T08:00:00+00:00",
+        )
+
+        self.assertEqual(record.failed_limit_up_times, 2)
+
     def test_collect_returns_empty_list_when_payload_data_is_null(self) -> None:
         import stock_bro.limit_up as limit_up
 
